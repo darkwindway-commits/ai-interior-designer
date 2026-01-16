@@ -3,51 +3,43 @@ import replicate
 import os
 from dotenv import load_dotenv
 
-# Загружаем API токен
 load_dotenv()
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 def generate_design(image, style):
     if not image:
-        raise gr.Error("Пожалуйста, загрузите фото!")
+        raise gr.Error("Загрузите фото!")
 
-    # ИСПОЛЬЗУЕМ ВЕРСИЮ, КОТОРУЮ ПОСОВЕТОВАЛ ГРОК (она стабильна)
+    # ТА САМАЯ РАБОЧАЯ ВЕРСИЯ С REPLICATE
     model_id = "stability-ai/stable-diffusion:ac732df83cea7fff18b75a6a3a5c3b8c3b8c3b8c3b8c3b8c3b8c3b8c3b8c3b8c3b"
     
     try:
-        # Запуск нейросети
         output = replicate.run(
             model_id,
             input={
+                "width": 768,
+                "height": 768,
+                "prompt": f"A professional {style} interior design, high quality, photorealistic",
                 "image": open(image, "rb"),
-                "prompt": f"A professional {style} interior design, high quality, photorealistic, architectural photography",
-                "negative_prompt": "low quality, blurry, distorted furniture",
                 "num_inference_steps": 30,
-                "guidance_scale": 7.5
+                "refine": "expert_ensemble_refiner"
             }
         )
-        # Модель SDXL возвращает список ссылок, берем первую
         return output[0] if isinstance(output, list) else output
     except Exception as e:
-        # Выводим ошибку текстом, чтобы понимать, если что-то не так
+        # Если ошибка — мы увидим её прямо в интерфейсе
         raise gr.Error(f"Ошибка API: {str(e)}")
 
-# Простой интерфейс (совместим с вашей версией Gradio 3.50.2)
-with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🏠 AI Дизайнер Интерьера")
+with gr.Blocks() as demo:
+    gr.Markdown("# 🏠 Ваш Дизайнер Интерьера")
     with gr.Row():
         with gr.Column():
-            input_img = gr.Image(type="filepath", label="Фото комнаты")
-            style_drop = gr.Dropdown(
-                choices=["Modern", "Scandinavian", "Luxury", "Industrial"], 
-                value="Modern", 
-                label="Стиль"
-            )
-            run_btn = gr.Button("СОЗДАТЬ ДИЗАЙН", variant="primary")
+            input_img = gr.Image(type="filepath", label="Фото")
+            style_drop = gr.Dropdown(choices=["Modern", "Scandinavian", "Industrial"], value="Modern", label="Стиль")
+            run_btn = gr.Button("СОЗДАТЬ")
         with gr.Column():
             output_img = gr.Image(label="Результат")
 
-    # Здесь ровно 2 входа и 1 выход — это уберет прошлые ошибки в логах
     run_btn.click(fn=generate_design, inputs=[input_img, style_drop], outputs=output_img)
 
 if __name__ == "__main__":
