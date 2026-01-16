@@ -36,10 +36,10 @@ def verify_and_generate(image, style, license_key, request: gr.Request):
             )
             data = response.json()
             if not data.get("success"):
-                raise gr.Error(f"Access Error: {data.get('message', 'Invalid key')}")
+                raise gr.Error("Access Error: " + data.get("message", "Invalid key"))
         except Exception as e:
             if "Access Error" in str(e): raise e
-            raise gr.Error(f"Verification failed: {str(e)}")
+            raise gr.Error("Verification failed: " + str(e))
 
     if not image:
         raise gr.Error("Please upload a photo first!")
@@ -49,7 +49,7 @@ def verify_and_generate(image, style, license_key, request: gr.Request):
         output = replicate.run(
             "stability-ai/stable-diffusion-3.5-large",
             input={
-                "prompt": f"A professional {style} interior design, high quality, photorealistic, 8k",
+                "prompt": "A professional " + style + " interior design, high quality, photorealistic, 8k",
                 "aspect_ratio": "1:1",
                 "output_format": "jpg",
                 "cfg": 4.5
@@ -60,9 +60,9 @@ def verify_and_generate(image, style, license_key, request: gr.Request):
             return output[0]
         return output
     except Exception as e:
-        raise gr.Error(f"AI Error: {str(e)}")
+        raise gr.Error("AI Error: " + str(e))
 
-# Interface UI
+# Interface UI - Title is set here for compatibility with Gradio 3.x
 with gr.Blocks(theme=gr.themes.Soft(), title="AI Interior Designer") as demo:
     gr.Markdown("# 🏠 AI Interior Designer")
     gr.Markdown("🌟 **Try for free:** 2 generations included! Enter your license key for 50 more.")
@@ -82,10 +82,9 @@ with gr.Blocks(theme=gr.themes.Soft(), title="AI Interior Designer") as demo:
 
     run_btn.click(fn=verify_and_generate, inputs=[input_img, style_drop, key_input], outputs=output_img)
 
-# Final launch with Title
+# Final launch - Removed 'title' from here to fix the Error
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0", 
-        server_port=7860,
-        title="AI Interior Designer"
+        server_port=7860
     )
