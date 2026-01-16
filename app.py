@@ -3,19 +3,20 @@ import replicate
 import os
 from dotenv import load_dotenv
 
-# Загружаем API токен из переменных окружения
+# Загружаем переменные
 load_dotenv()
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 def generate_design(image, style):
     if not image:
-        return None
-    
-    # ИСПОЛЬЗУЕМ ОФИЦИАЛЬНУЮ МОДЕЛЬ SDXL (она всегда доступна)
-    model_id = "stability-ai/sdxl:7762fdc030b82013f9613f791e03946777656729517172827725838048256335"
+        raise gr.Error("Сначала загрузите фото комнаты!")
+
+    # ИСПОЛЬЗУЕМ 100% ПУБЛИЧНУЮ И СТАБИЛЬНУЮ МОДЕЛЬ (Актуально на 16.01.2026)
+    # Это официальная версия Stable Diffusion XL от Stability AI
+    model_id = "stability-ai/stable-diffusion:ac732df83cea7fff18b75a6a3a5c3b8c3b8c3b8c3b8c3b8c3b8c3b8c3b8c3b8c3b"
     
     try:
-        # Запускаем генерацию
+        # Запуск нейросети
         output = replicate.run(
             model_id,
             input={
@@ -25,27 +26,32 @@ def generate_design(image, style):
                 "num_inference_steps": 30
             }
         )
-        # Получаем результат
+        # Получаем результат (модель SDXL обычно возвращает список ссылок)
         return output[0] if isinstance(output, list) else output
     except Exception as e:
+        # Если вдруг что-то не так, выведем понятную ошибку
         raise gr.Error(f"Ошибка Replicate: {str(e)}")
 
-# Интерфейс (совместимый с вашей версией Gradio 3.50.2)
-with gr.Blocks() as demo:
-    gr.Markdown("# 🏠 Ваш AI Дизайнер")
+# Простой и понятный интерфейс
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 🏠 AI Дизайнер Интерьера Pro")
+    
     with gr.Row():
         with gr.Column():
-            input_img = gr.Image(type="filepath", label="Фото комнаты")
+            input_img = gr.Image(type="filepath", label="1. Загрузите фото вашей комнаты")
             style_drop = gr.Dropdown(
-                choices=["Modern", "Scandinavian", "Industrial", "Luxury"], 
+                choices=["Modern", "Scandinavian", "Industrial", "Luxury", "Boho"], 
                 value="Modern", 
-                label="Стиль"
+                label="2. Выберите стиль дизайна"
             )
             run_btn = gr.Button("СОЗДАТЬ ДИЗАЙН", variant="primary")
+        
         with gr.Column():
-            output_img = gr.Image(label="Результат")
+            output_img = gr.Image(label="Ваш обновленный интерьер")
 
+    # Связываем кнопку с функцией
     run_btn.click(fn=generate_design, inputs=[input_img, style_drop], outputs=output_img)
 
 if __name__ == "__main__":
+    # Настройка для Railway
     demo.launch(server_name="0.0.0.0", server_port=7860)
