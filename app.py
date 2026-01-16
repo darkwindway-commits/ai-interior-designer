@@ -4,29 +4,31 @@ import os
 import requests
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 GUMROAD_TOKEN = os.getenv("GUMROAD_TOKEN")
 PRODUCT_ID = os.getenv("GUMROAD_PRODUCT_ID")
 
-# Временное хранилище IP-адресов (сбросится при перезагрузке сервера)
+# Temporary in-memory storage for free trials (clears on restart)
 free_usage_tracker = {}
 
 def verify_and_generate(image, style, license_key, request: gr.Request):
-    client_ip = request.client.host # Получаем IP пользователя
+    # Get user IP for rate limiting
+    client_ip = request.client.host
     
-    # --- ЛОГИКА БЕСПЛАТНЫХ ПОПЫТОК ---
+    # 1. FREE TRIAL LOGIC (If no key provided)
     if not license_key:
         user_free_count = free_usage_tracker.get(client_ip, 0)
         
         if user_free_count >= 2:
-            raise gr.Error("Ваши 2 бесплатные попытки закончились. Пожалуйста, введите лицензионный ключ для продолжения!")
+            raise gr.Error("Your 2 free trials have ended. Please purchase a license key to continue!")
         
-        # Увеличиваем счетчик бесплатных попыток
+        # Log usage
         free_usage_tracker[client_ip] = user_free_count + 1
-        print(f"IP {client_ip} использовал бесплатную попытку {user_free_count + 1}/2")
+        print(f"IP {client_ip}: used free trial {user_free_count + 1}/2")
     
-    # --- ЛОГИКА ПЛАТНОГО КЛЮЧА ---
+    # 2. PAID LICENSE LOGIC
     else:
         try:
             response = requests.post(
@@ -39,56 +41,69 @@ def verify_and_generate(image, style, license_key, request: gr.Request):
             )
             data = response.json()
             if not data.get("success"):
-                raise gr.Error(f"Ошибка ключа: {data.get('message', 'Неверный код')}")
+                error_msg = data.get("message", "Invalid license key")
+                raise gr.Error(f"Access Error: {error_msg}")
         except Exception as e:
-            if "Ошибка" in str(e): raise e
-            raise gr.Error(f"Проблема с проверкой оплаты: {str(e)}")
+            if "Access Error" in str(e): raise e
+            raise gr.Error(f"Payment verification failed: {str(e)}")
 
-    # --- ОБЩАЯ ГЕНЕРАЦИЯ ---
+    # 3. IMAGE VALIDATION
     if not image:
-        raise gr.Error("Загрузите фото комнаты!")
+        raise gr.Error("Please upload a photo of your room first!")
 
+    # 4. AI GENERATION (Stable Diffusion 3.5 Large)
     try:
         model_id = "stability-ai/stable-diffusion-3.5-large"
+        prompt = f"A professional {style} interior design, high quality, photorealistic, architectural photography, 8k"
+        
         output = replicate.run(
             model_id,
             input={
-                "prompt": f"A professional {style} interior design, high quality, photorealistic, 8k",
+                "prompt": prompt,
                 "aspect_ratio": "1:1",
-                "output_format": "webp",
+                "output_format": "jpg",
                 "cfg": 4.5
             }
         )
-        return output[0]
+        
+        # Handle Replicate output correctly to avoid FileNotFoundError
+        if isinstance(output, list) and len(output) > 0:
+            return output[0]
+        return output
+        
     except Exception as e:
-        raise gr.Error(f"Ошибка нейросети: {str(e)}")
+        raise gr.Error(f"AI Generation failed: {str(e)}")
 
-# Интерфейс
+# Gradio Interface in English
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🏠 AI Дизайнер Интерьера")
-    gr.Markdown("**Акция:** 2 пробные генерации бесплатно! Для безлимита (50 шт) введите ключ.")
+    gr.Markdown("# 🏠 AI Interior Designer")
+    gr.Markdown("🌟 **Special Offer:** 2 trials for free! For a full package (50 generations), please enter your license key.")
     
     with gr.Row():
         with gr.Column():
-            input_img = gr.Image(type="filepath", label="1. Фото комнаты")
+            input_img = gr.Image(type="filepath", label="1. Upload Room Photo")
             style_drop = gr.Dropdown(
-                choices=["Modern", "Scandinavian", "Luxury", "Minimalist"], 
+                choices=["Modern", "Scandinavian", "Luxury", "Minimalist", "Industrial", "Boho"], 
                 value="Modern", 
-                label="2. Стиль"
+                label="2. Select Design Style"
             )
             key_input = gr.Textbox(
-                label="3. Лицензионный ключ (оставьте пустым для пробы)", 
-                placeholder="XXXX-XXXX-XXXX-XXXX"
+                label="3. License Key", 
+                placeholder="Leave empty for free trial",
+                type="password"
             )
-            run_btn = gr.Button("СОЗДАТЬ ДИЗАЙН ✨", variant="primary")
+            run_btn = gr.Button("GENERATE DESIGN ✨", variant="primary")
+        
         with gr.Column():
-            output_img = gr.Image(label="Результат")
+            output_img = gr.Image(label="Your New Interior")
 
+    # Link button to function
     run_btn.click(
         fn=verify_and_generate, 
         inputs=[input_img, style_drop, key_input], 
         outputs=output_img
     )
 
+# Launch app
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
