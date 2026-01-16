@@ -3,7 +3,7 @@ import replicate
 import os
 from dotenv import load_dotenv
 
-# Загружаем API токен из переменных окружения Railway
+# Загружаем API токен (Railway подтянет его из раздела Variables)
 load_dotenv()
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
@@ -11,17 +11,17 @@ def generate_design(image, style, license_key):
     if not image:
         raise gr.Error("Пожалуйста, сначала загрузите фото!")
 
-    # Если в ключе больше 5 символов — это PRO режим (улучшенное качество)
+    # Проверка ключа для PRO режима
     is_pro = bool(license_key and len(license_key) > 5)
     
-    # СТАБИЛЬНАЯ МОДЕЛЬ (исправляет ошибку 422)
+    # ЭТА МОДЕЛЬ ТОЧНО РАБОТАЕТ (Исправляет вашу ошибку 422)
     model_id = "lucataco/interior-design:76604a15c33606f234394622f36f6d3a8258e747ef1f7053e16739665f80b852"
     
-    # Количество шагов генерации
+    # Настройки качества
     steps = 40 if is_pro else 20
 
     try:
-        # Запуск нейросети через Replicate API
+        # Запуск нейросети
         output = replicate.run(
             model_id,
             input={
@@ -31,7 +31,7 @@ def generate_design(image, style, license_key):
                 "num_inference_steps": steps
             }
         )
-        # Получаем прямую ссылку на сгенерированное изображение
+        # Получаем ссылку на результат
         result_url = output[0] if isinstance(output, list) else output
         
         status = "✨ PRO режим активен" if is_pro else "🆓 Бесплатная версия"
@@ -39,7 +39,7 @@ def generate_design(image, style, license_key):
     except Exception as e:
         return None, f"Ошибка: {str(e)}. Проверьте баланс на Replicate."
 
-# Создание веб-интерфейса
+# Создание интерфейса Gradio
 with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo")) as demo:
     gr.Markdown("# 🏠 AI Interior Designer Pro")
     
@@ -47,11 +47,11 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo")) as demo:
         with gr.Column():
             room_img = gr.Image(type="filepath", label="1. Загрузите фото вашей комнаты")
             style_drop = gr.Dropdown(
-                label="2. Выберите стиль дизайна",
+                label="2. Выберите стиль",
                 choices=["Modern", "Scandinavian", "Luxury", "Minimalist", "Boho", "Industrial", "Rustic", "Japanese"],
                 value="Modern"
             )
-            key_in = gr.Textbox(label="3. Код доступа PRO (опционально)", placeholder="Введите ключ для 4K качества")
+            key_in = gr.Textbox(label="3. Код доступа PRO (если есть)", placeholder="Введите ключ для улучшения качества")
             btn = gr.Button("СОЗДАТЬ ДИЗАЙН", variant="primary")
         
         with gr.Column():
@@ -72,7 +72,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo")) as demo:
         </div>
     """)
 
-# Запуск с фиксами для облачного сервера Railway
+# Запуск с настройками для Railway
 if __name__ == "__main__":
     demo.queue().launch(
         server_name="0.0.0.0", 
