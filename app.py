@@ -3,7 +3,7 @@ import replicate
 import os
 from dotenv import load_dotenv
 
-# Загружаем переменные (токен Replicate подтянется из Railway)
+# Загружаем переменные (токен Replicate подтянется из Railway автоматически)
 load_dotenv()
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
@@ -11,16 +11,17 @@ def generate_design(image, style, license_key):
     if not image:
         raise gr.Error("Please upload a photo first!")
 
-    # Проверка ключа: если больше 5 символов — PRO режим
+    # Проверка ключа: если введено больше 5 символов — включаем PRO режим
     is_pro = bool(license_key and len(license_key) > 5)
     
-    # НОВАЯ СТАБИЛЬНАЯ МОДЕЛЬ (Исправляет ошибку 422)
+    # НОВАЯ СТАБИЛЬНАЯ МОДЕЛЬ (заменяем ту, что выдавала ошибку 422)
     model_id = "lucataco/interior-design:76604a15c33606f234394622f36f6d3a8258e747ef1f7053e16739665f80b852"
     
-    # Настройки качества
+    # Настройки качества: PRO получает больше шагов обработки
     steps = 40 if is_pro else 15
 
     try:
+        # Запускаем нейросеть
         output = replicate.run(
             model_id,
             input={
@@ -30,15 +31,15 @@ def generate_design(image, style, license_key):
                 "num_inference_steps": steps
             }
         )
-        # Модель lucataco возвращает список строк (ссылок)
+        # Получаем ссылку на готовую картинку
         result_url = output[0] if isinstance(output, list) else output
         
         status = "✨ PRO Mode Active (High Quality)" if is_pro else "🆓 Free Version (Low Quality)"
         return result_url, status
     except Exception as e:
-        return None, f"Error: {str(e)}"
+        return None, f"Error: {str(e)}. Check your Replicate balance."
 
-# Создаем интерфейс
+# Создаем красивый интерфейс (используем Gradio 3.50.2 для стабильности на Railway)
 with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo")) as demo:
     gr.Markdown("# 🏠 AI Interior Designer Pro")
     
@@ -50,7 +51,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo")) as demo:
                 choices=["Modern", "Scandinavian", "Industrial", "Boho", "Minimalist", "Luxury", "Rustic", "Japanese"],
                 value="Modern"
             )
-            key_in = gr.Textbox(label="3. PRO Access Code", placeholder="Enter your key for 4K quality")
+            key_in = gr.Textbox(label="3. PRO Access Code", placeholder="Enter any key for 4K quality")
             btn = gr.Button("TRANSFORM ROOM", variant="primary")
         
         with gr.Column():
@@ -71,7 +72,7 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="indigo")) as demo:
         </div>
     """)
 
-# Запуск для Railway
+# Запуск с правильными настройками порта для Railway
 if __name__ == "__main__":
     demo.queue().launch(
         server_name="0.0.0.0", 
