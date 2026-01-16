@@ -10,23 +10,18 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 GUMROAD_TOKEN = os.getenv("GUMROAD_TOKEN")
 PRODUCT_ID = os.getenv("GUMROAD_PRODUCT_ID")
 
-# Temporary in-memory storage for free trials (clears on restart)
+# Temporary in-memory storage for free trials
 free_usage_tracker = {}
 
 def verify_and_generate(image, style, license_key, request: gr.Request):
-    # Get user IP for rate limiting
     client_ip = request.client.host
     
-    # 1. FREE TRIAL LOGIC (If no key provided)
+    # 1. FREE TRIAL LOGIC
     if not license_key:
         user_free_count = free_usage_tracker.get(client_ip, 0)
-        
         if user_free_count >= 2:
             raise gr.Error("Your 2 free trials have ended. Please purchase a license key to continue!")
-        
-        # Log usage
         free_usage_tracker[client_ip] = user_free_count + 1
-        print(f"IP {client_ip}: used free trial {user_free_count + 1}/2")
     
     # 2. PAID LICENSE LOGIC
     else:
@@ -41,43 +36,36 @@ def verify_and_generate(image, style, license_key, request: gr.Request):
             )
             data = response.json()
             if not data.get("success"):
-                error_msg = data.get("message", "Invalid license key")
-                raise gr.Error(f"Access Error: {error_msg}")
+                raise gr.Error(f"Access Error: {data.get('message', 'Invalid key')}")
         except Exception as e:
             if "Access Error" in str(e): raise e
-            raise gr.Error(f"Payment verification failed: {str(e)}")
+            raise gr.Error(f"Verification failed: {str(e)}")
 
-    # 3. IMAGE VALIDATION
     if not image:
-        raise gr.Error("Please upload a photo of your room first!")
+        raise gr.Error("Please upload a photo first!")
 
-    # 4. AI GENERATION (Stable Diffusion 3.5 Large)
+    # 3. AI GENERATION
     try:
-        model_id = "stability-ai/stable-diffusion-3.5-large"
-        prompt = f"A professional {style} interior design, high quality, photorealistic, architectural photography, 8k"
-        
         output = replicate.run(
-            model_id,
+            "stability-ai/stable-diffusion-3.5-large",
             input={
-                "prompt": prompt,
+                "prompt": f"A professional {style} interior design, high quality, photorealistic, 8k",
                 "aspect_ratio": "1:1",
                 "output_format": "jpg",
                 "cfg": 4.5
             }
         )
-        
-        # Handle Replicate output correctly to avoid FileNotFoundError
+        # Correctly return the image URL
         if isinstance(output, list) and len(output) > 0:
             return output[0]
         return output
-        
     except Exception as e:
-        raise gr.Error(f"AI Generation failed: {str(e)}")
+        raise gr.Error(f"AI Error: {str(e)}")
 
-# Gradio Interface in English
-with gr.Blocks(theme=gr.themes.Soft()) as demo:
+# Interface UI
+with gr.Blocks(theme=gr.themes.Soft(), title="AI Interior Designer") as demo:
     gr.Markdown("# 🏠 AI Interior Designer")
-    gr.Markdown("🌟 **Special Offer:** 2 trials for free! For a full package (50 generations), please enter your license key.")
+    gr.Markdown("🌟 **Try for free:** 2 generations included! Enter your license key for 50 more.")
     
     with gr.Row():
         with gr.Column():
@@ -85,25 +73,19 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             style_drop = gr.Dropdown(
                 choices=["Modern", "Scandinavian", "Luxury", "Minimalist", "Industrial", "Boho"], 
                 value="Modern", 
-                label="2. Select Design Style"
+                label="2. Select Style"
             )
-            key_input = gr.Textbox(
-                label="3. License Key", 
-                placeholder="Leave empty for free trial",
-                type="password"
-            )
+            key_input = gr.Textbox(label="3. License Key", placeholder="Leave empty for trial", type="password")
             run_btn = gr.Button("GENERATE DESIGN ✨", variant="primary")
-        
         with gr.Column():
-            output_img = gr.Image(label="Your New Interior")
+            output_img = gr.Image(label="Result")
 
-    # Link button to function
-    run_btn.click(
-        fn=verify_and_generate, 
-        inputs=[input_img, style_drop, key_input], 
-        outputs=output_img
-    )
+    run_btn.click(fn=verify_and_generate, inputs=[input_img, style_drop, key_input], outputs=output_img)
 
-# Launch app
+# Final launch with Title
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(
+        server_name="0.0.0.0", 
+        server_port=7860,
+        title="AI Interior Designer"
+    )
